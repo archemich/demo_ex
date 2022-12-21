@@ -1,4 +1,4 @@
-"""Setup as package"""
+"""Setup as package."""
 import pathlib
 
 from pkg_resources import parse_requirements
