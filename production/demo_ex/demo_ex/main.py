@@ -333,6 +333,9 @@ class App:
 
         self.road = pg.image.load(resource_folder / 'road.png')
 
+        flavicon = pg.image.load(resource_folder / 'flavicon.png')
+        pg.display.set_icon(flavicon)
+
     def run_generation(self, genomes, config):
         """Run generation. Supposed to be used by neural network many times."""
         nets = []
@@ -388,7 +391,6 @@ class App:
                     car.update(self.road)
                     genomes[i][1].fitness += car.get_reward(
                         round(time.time() - start_time, 3))
-                    # print(genomes[i][1].fitness)
 
             if not cars_left:
                 break
@@ -400,7 +402,6 @@ class App:
                 if car.is_alive:
                     car.draw(screen)
                     time_alive = round(time.time() - start_time, 3)
-                    print(time_alive)
                     if time_alive > 30:  # seconds
                         do_stop = True
             if do_stop:

@@ -25,5 +25,5 @@ demo_ex
 
 Пример запуска программы:
 ```shell
-demo_ex --sqlite3 .\demo_ex\data\db.sqlite3 --neat-config .\demo_ex\data\config-feedforward.txt
+demo_ex --sqlite3 .\demo_ex\data\db.sqlite3 --neat-config .\demo_ex\data\neat_config.txt
 ```
