@@ -14,6 +14,8 @@ import neat
 import pygame as pg
 import pandas as pd
 
+from .version import __version__
+
 
 global win_res
 resource_folder = Path(__file__).parent / 'resources'
@@ -53,6 +55,9 @@ def parse_args():
                         help='Path to config for neat.')
     parser.add_argument('--win-resolution', default=(1200, 1080), type=int,
                         nargs=2)
+    parser.add_argument('--version',
+                        action='version',
+                        version=__version__)
 
     args = parser.parse_args()
     return args

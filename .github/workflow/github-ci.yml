@@ -43,4 +43,4 @@ jobs:
           pip3 install .
       - name: "Smoke test"
         run: |
-          traffic-wsr --version
+          demo_ex --version
