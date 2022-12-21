@@ -3,6 +3,7 @@ import math
 from pathlib import Path
 import tkinter as tk
 from typing import Tuple
+import time
 import random
 import sqlite3
 import sys
@@ -14,6 +15,7 @@ import pandas as pd
 
 global win_res
 resource_folder = Path(__file__).parent / 'resources'
+target_pos = (261, 46)
 
 def start_win():
     win = tk.Tk()
@@ -71,12 +73,22 @@ def init_db(path: Path, drop_old: bool = False) -> sqlite3.Connection:
 
 
 class Car:
+    reward_mapping = {
+        'city_exit': 20,
+        'distance': 0.0,
+        'target_min_dist': 0.03,
+        'right_direction': 0.005,
+        'wrong_direction': 0,
+        'live_time': -0.01
+    }
+
     car_sprites = ("Car1", "Car2", "Car3", "Car4", "Car5")
 
     def __init__(self):
         self.random_sprite()
+        self.road = None
 
-        self.angle = 0
+        self.angle = 180
         self.speed = 5
 
         self.radars = []
@@ -95,7 +107,7 @@ class Car:
                                               math.floor(self.car_sprite.get_size()[1] / 1)))
         self.car = self.car_sprite
 
-        self.pos = [230, 950]
+        self.pos = [900, 950]
         self.compute_center()
 
     def compute_center(self):
@@ -182,11 +194,36 @@ class Car:
 
         return data
 
-    def get_reward(self):
-        return self.distance / 50.0
+    def check_direction(self):
+        """True if on right side of road."""
+        offset = 2
+        white_line_color = (255, 255, 255, 255)
+        point = [int(x) for x in self.center]
+        while (self.road.get_at(point) != white_line_color and
+               self.road.get_at(point) != App.bg):
+            point[0] += int(math.cos(math.radians(self.angle)) * -offset)
+            point[1] += int(math.sin(math.radians(self.angle)) * -offset)
+
+        return self.road.get_at(point) != App.bg
+
+    def get_reward(self, live_time):
+        rew = self.speed * self.reward_mapping['distance']
+        if self.check_direction():
+            rew += self.reward_mapping['right_direction'] * self.speed
+        else:
+            rew += self.reward_mapping['wrong_direction'] * self.speed
+
+        dist = math.sqrt((target_pos[0] - self.pos[0]) ** 2 +
+                    (target_pos[1] - self.pos[1]) ** 2)
+        init_dist = math.sqrt((target_pos[0] - 1050) ** 2 +
+                    (target_pos[1] - 980) ** 2)
+        rew += (init_dist - dist) * self.reward_mapping['target_min_dist']
+        rew += live_time * self.reward_mapping['live_time']
+        return rew
 
     def update(self, road):
-        self.speed = 2
+        self.road = road
+
         (width, height) = win_res
         self.rotate(self.angle)
 
@@ -220,8 +257,12 @@ class App:
                    win_resolution: Tuple[int, int]):
         self.con = connection
         self.win_res = win_resolution
+
         self.generation = 0
         self.start = False
+        self.best_time = sys.maxsize * 2
+
+        self.road = pg.image.load(resource_folder / 'road.png')
 
     def run_generation(self, genomes, config):
 
@@ -238,7 +279,6 @@ class App:
         pg.init()
         screen = pg.display.set_mode(self.win_res)
         clock = pg.time.Clock()
-        road = pg.image.load(resource_folder / 'road.png')
 
         font = pg.font.SysFont("Roboto", 40)
         heading_font = pg.font.SysFont("Roboto", 80)
@@ -246,9 +286,7 @@ class App:
 
         self.generation += 1
 
-        import time
         start_time = time.time()
-        gen_time = 0
 
         while True:
             for event in pg.event.get():
@@ -260,7 +298,7 @@ class App:
                     if event.key == pg.K_SPACE:
                         self.start = False
                     if event.key == pg.K_f:
-                        sys.exit()
+                        break
 
             if not self.start:
                 continue
@@ -280,13 +318,14 @@ class App:
             for i, car in enumerate(cars):
                 if car.is_alive:
                     cars_left += 1
-                    car.update(road)
-                    genomes[i][1].fitness += car.get_reward()
+                    car.update(self.road)
+                    genomes[i][1].fitness += car.get_reward(round(time.time() - start_time, 3))
+                    # print(genomes[i][1].fitness)
 
             if not cars_left:
                 break
 
-            screen.blit(road, (0, 0))
+            screen.blit(self.road, (0, 0))
 
             do_stop = False
             for car in cars:
@@ -308,10 +347,17 @@ class App:
             label_rect.center = (240, 100)
             screen.blit(label, label_rect)
 
+            label = font.render("Лучшее время: " + str(self.best_time), True, (40, 40, 40))
+            label_rect = label.get_rect()
+            label_rect.center = (240, 150)
+            screen.blit(label, label_rect)
+
             pg.display.flip()
             clock.tick(0)
 
         gentime = round(time.time() - start_time, 3)
+        if gentime < self.best_time:
+            self.best_time = gentime
         gen_num = self.generation
         gen_time = gentime
         cursor = self.con.cursor()
@@ -350,7 +396,6 @@ def main():
     p = neat.Population(config)
     runner = App(con, args.win_resolution)
     p.run(runner.run_generation, 1000)
-
 
 
 if __name__ == '__main__':
